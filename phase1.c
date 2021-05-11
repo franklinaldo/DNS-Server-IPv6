@@ -13,29 +13,12 @@
 #define DOT 1
 
 
-
-long long convertIntToBin(int n) {
-    long long bin = 0;
-    int rem, i = 1, step = 1;
-    while (n != 0) {
-        rem = n % 2;
-        printf("Step %d: %d/2, Remainder = %d, Quotient = %d\n", step++, n, rem, n / 2);
-        n /= 2;
-        bin += rem * i;
-        i *= 10;
-    }
-    return bin;
-}
+/* ******************** Functions ******************** */
 
 int convertHexToDec(char* byte){
     return (int)byte[0]*256 + (int)byte[1];
 }
 
-int convertUHexToDec(unsigned char* byte){
-    return (int)byte[0]*256 + (int)byte[1];
-}
-
-// Functions
 // DNS message size
 int dns_message_size(char* size_in_hex) {
     return convertHexToDec(size_in_hex);
@@ -59,7 +42,7 @@ void read_raw_data(char* filename, unsigned char** message) {
     printf("Data size: %d\n", message_size);
 
     *message =  malloc(message_size);
-    size_t read_mes = read( fdes, *message, message_size);
+    read( fdes, *message, message_size);
     
     // Printing the data
     // for( int x=0; x<message_size; x++) {
@@ -131,12 +114,53 @@ char* timestamp(char** ts) {
     return *ts;
 }
 
+void stringify_ip_address(char *cleaned_ip_string, unsigned char* message, int* index) {
+
+    unsigned char buf[sizeof(struct in6_addr)];
+    char *ip_addr_string = malloc(INET6_ADDRSTRLEN);
+    int s;
+    char temp[4];
+    // cleaned_ip_string[0]
+    // unsigned char buf[sizeof(struct in6_addr)];
+    // char *ip_addr_string = malloc(INET6_ADDRSTRLEN);
+    // int s;
+    // printf("MASOK\n");
+    // Getting the ipd address hex
+    
+    for (int i=0; i<16; i++) {
+        // printf("message[%d]: %.2x\n", *index+17+i, message[*index+17+i]);
+        sprintf(temp, "%.2x", message[*index+17+i]);
+        // printf("MASOK x%d\n", i);
+        strcat(ip_addr_string, temp);
+        // ip_address[ip_index] = temp;
+        // ip_index++;
+        if ((i%2) && (i!=15)) {
+            strcat(ip_addr_string, ":");
+            // printf("MASOK sini juga x%d\n", i);
+        }
+        // printf("ip_addr_string: %s\n", ip_addr_string);
+    }
+
+    s = inet_pton(AF_INET6, ip_addr_string, buf);
+    
+    if (s <= 0) {
+        if (s == 0)
+            fprintf(stderr, "Not in presentation format");
+        else
+            perror("inet_pton");
+        exit(EXIT_FAILURE);
+    }
+    inet_ntop(AF_INET6, buf, cleaned_ip_string, INET6_ADDRSTRLEN);
+
+    // printf("%s\n", cleaned_ip_string);
+
+}
 int main(int argc, char* argv[]) {
 
     // Shifting to the first bit of the response
     unsigned char* message;
     
-    read_raw_data(argv[1], &message);
+    read_raw_data(argv[2], &message);
 
     unsigned char response = message[2]>>7;
     printf("Response: %d\n", response);
@@ -161,167 +185,36 @@ int main(int argc, char* argv[]) {
         printf("DNS type: IPv6\n");
     }
 
-    /* ***************************** Log Request ************************************** */
+    /* ***************************** Logging ************************************** */
     // from https://www.tutorialspoint.com/c_standard_library/c_function_strftime.htm
     
     char* request_log_string = malloc(80);
-    char* time_buffer = timestamp(&request_log_string);
 
     FILE *f;
-    f = fopen("dns_svr.log", "a+"); // a+ (create + append) option will allow appending which is useful in a log file
+    f = fopen("dns_svr.log", "w"); // a+ (create + append) option will allow appending which is useful in a log file
     if (f == NULL) { /* Something is wrong   */}
 
+    /* ***************************** request ************************************** */
     if (!response){
-    fprintf(f, "%s %s %s\n", time_buffer, "requested", domain_name);
-    printf("%s %s %s\n", time_buffer, "requested", domain_name);
+        char* time_buffer = timestamp(&request_log_string);
+        fprintf(f, "%s %s %s\n", time_buffer, "requested", domain_name);
+        printf("%s %s %s\n", time_buffer, "requested", domain_name);
     }
 
-    /* ***************************** Response ************************************** */
-    unsigned char* ip_address = malloc(INET6_ADDRSTRLEN);
-    unsigned char buf[sizeof(struct in6_addr)];
-    char *ip_addr_string = malloc(INET6_ADDRSTRLEN);
-    int ip_index = 0;
-    int domain, s;
-    char str[INET6_ADDRSTRLEN];
-    char temp[4];
+    // printf("From outside msg: %x\n", message[41]);
+    /* ***************************** response ************************************** */
 
-    for (int i=0; i<16; i++) {
-        ip_address[i] = message[index+17+i];
-        printf("ipadd: %x\n", ip_address[i]);
+    if (response) {
+        char* cleaned_ip_string = malloc(INET6_ADDRSTRLEN);
+        char* time_buffer = timestamp(&request_log_string);
+        stringify_ip_address(cleaned_ip_string, message, &index);
+        printf("IP Address: %s\n", cleaned_ip_string);
+        // 2021-04-24T05:12:32+0000 1.comp30023 is at 2001:388:6074::7547:1
+        fprintf(f, "%s %s %s %s\n", time_buffer, domain_name, "is at", cleaned_ip_string);
+        printf("%s %s %s %s\n", time_buffer, domain_name, "is at", cleaned_ip_string);
     }
-    
-    for (int i=0; i<16; i++) {
-        ip_address[i] = message[index+17+i];
-        sprintf(temp, "%.2x", message[index+17+i]);
-        strcat(ip_addr_string, temp);
-        // ip_address[ip_index] = temp;
-        // ip_index++;
-        if ((i%2) && (i!=15)) {
-            strcat(ip_addr_string, ":");
-        }
-    }
+    /* *****************************  ************************************** */
 
-    printf("ip str: %s\n", ip_addr_string);
-    s = inet_pton(AF_INET6, ip_addr_string, buf);
-    // s = inet_pton(domain, ip_addr_string, buf);
-           if (s <= 0) {
-               if (s == 0)
-                   fprintf(stderr, "Not in presentation format");
-               else
-                   perror("inet_pton");
-               exit(EXIT_FAILURE);
-           }
-           inet_ntop(AF_INET6, buf, str, INET6_ADDRSTRLEN);
-
-           printf("%s\n", str);
-
-    /**************************************************************************************/
-
-    // unsigned char buf[sizeof(struct in6_addr)];
-    // int domain, s;
-    // char str[INET6_ADDRSTRLEN];
-
-    // if (argc != 3) {
-    //     fprintf(stderr, "Usage: %s {i4|i6|<num>} string\n", argv[0]);
-    //     exit(EXIT_FAILURE);
-    // }
-
-    // // domain = (strcmp(argv[1], "i4") == 0) ? AF_INET :
-    // //         (strcmp(argv[1], "i6") == 0) ? AF_INET6 : atoi(argv[1]);
-    // // domain = atoi()
-    // s = inet_pton(domain, argv[2], buf);
-    // if (s <= 0) {
-    //     if (s == 0)
-    //         fprintf(stderr, "Not in presentation format");
-    //     else
-    //         perror("inet_pton");
-    //     exit(EXIT_FAILURE);
-    // }
-
-    // if (inet_ntop(domain, buf, str, INET6_ADDRSTRLEN) == NULL) {
-    //     perror("inet_ntop");
-    //     exit(EXIT_FAILURE);
-    // }
-
-    // printf("%s\n", str);
-
-    // exit(EXIT_SUCCESS);
-
-/**************************************************************************************/
-
-    // if (response) {
-
-        
-    //     // Jump to IPv6 Address, +17 from the latest index
-    //     // for (int i=0; i<16; i++) {
-    //     //     // message[index+17]
-    //     //     // char hex_ip[2] = message[index+17+i];
-    //     //     // printf("response[%d+17+%d]: %x\n", index, i, convertHexToDec((char*)message[index+17+i]));
-    //     //     printf("belom seg faultttt\n");
-
-    //     //     // switch (i%2)
-    //     //     // {
-    //     //     // case 0:
-    //     //     //                         // printf("inner INDEX %d\n", convertUHexToDec(message[index+17+i]));
-    //     //     //     if (message[index+17+i]!=0x0) {
-    //     //     //         printf("Case 0\n");
-    //     //     //         // printf("belom seg faultttt\n");
-    //     //     //                         // printf("inner INDEX %x\n", message[index+17+i]);
-    //     //     //         printf("response[%d+17+%d]: %x\n", index, i, message[index+17+i]);
-    //     //     //         fprintf(f,"%x", message[index+17+i]);
-    //     //     //         sprintf(temp, "%x", message[index+17+i]);
-    //     //     //         ip_address[ip_index] = temp;
-    //     //     //         ip_index++;
-
-
-    //     //     //         // fprintf('%x', message[index+17+i]);
-    //     //     //         // printf("belom seg faultttt\n");
-    //     //     //     }
-    //     //     //     break;
-    //     //     // case 1:
-    //     //     //     if (message[index+17+i]!=0x0) {
-    //     //     //         printf("Case 1\n");
-    //     //     //         if (message[index+17+i-1] != 0x0) {
-    //     //     //             fprintf(f,"%.2x", message[index+17+i]);
-    //     //     //             printf("response[%d+17+%d]: %.2x\n", index, i, message[index+17+i]);
-    //     //     //             sprintf(temp, "%x", message[index+17+i]);
-    //     //     //             printf("temp: %s\n", temp);
-    //     //     //             ip_address[ip_index] = temp;
-    //     //     //             ip_index++;
-    //     //     //         } else {
-    //     //     //             fprintf(f,"%x", message[index+17+i]);
-    //     //     //             printf("response[%d+17+%d]: %x\n", index, i, message[index+17+i]);
-    //     //     //             sprintf(temp, "%x", message[index+17+i]);
-    //     //     //             ip_address[ip_index] = temp;
-    //     //     //             ip_index++;
-    //     //     //         }
-    //     //     //         // fprintf(f,"%x", message[index+17+i]);
-    //     //     //         // printf("response[%d+17+%d]: %x\n", index, i, message[index+17+i]);
-
-    //     //     //         // fprintf('%x', message[index+17+i]);
-                
-    //     //     //     if (i!=15) {
-    //     //     //         fprintf(f,":");
-    //     //     //         ip_address[ip_index] = ":";
-    //     //     //         ip_index++;
-    //     //     //     }
-    //     //     //     }
-    //     //     //     break;
-    //     //     // default:
-    //     //     //     break;
-    //     //     // }
-    //     //     // fprintf(f, "%s %s %s\n", time_buffer, "requested", domain_name);
-
-    //     // }
-    //     // printf("IP_ADD: %s\n", ip_address);
-
-
-    //     // printf("message[%d+17]: %x", index, message[index+17]);
-    //     // <timestamp> <domain_name> is at <IP address>
-    // }
-
-    
 
     return(0);
-
 }
