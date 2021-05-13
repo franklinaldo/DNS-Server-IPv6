@@ -10,6 +10,7 @@
 #include <ctype.h>
 
 
+#define DATA_SIZE 2
 #define DATA_LENGTH 2
 #define RESPONSE 2
 #define FIRST_NAME_INDEX 12
@@ -18,19 +19,14 @@
 
 /* ******************** Functions ******************** */
 
-int convertHexToDec(char* byte){
+int convertHexToDec(unsigned char* byte){
     return (int)byte[0]*256 + (int)byte[1];
-}
-
-// DNS message size
-int dns_message_size(char* size_in_hex) {
-    return convertHexToDec(size_in_hex);
 }
 
 // read data
 void read_raw_data(char* filename, unsigned char** message) {
     int fdes;
-    char buffer[DATA_LENGTH];
+    unsigned char buffer[DATA_LENGTH];
 
     /* open the file for unformatted input */
     fdes = open(filename,O_RDONLY);
@@ -39,8 +35,8 @@ void read_raw_data(char* filename, unsigned char** message) {
     }
 
     read(fdes, buffer, DATA_LENGTH);
-    
-    int message_size = dns_message_size(buffer);
+
+    int message_size = convertHexToDec(buffer);
     // printf("Data size: %d\n", convertHexToDec(buffer));
     printf("Data size: %d\n", message_size);
 
@@ -169,8 +165,8 @@ int main(int argc, char* argv[]) {
     f = fopen("dns_svr.log", "w"); // a+ (create + append) option will allow appending which is useful in a log file
     if (f == NULL) { /* Something is wrong   */}
     // Attributes for server
-    int sockfd, newsockfd, n, re, i, s;
-	char buffer[256];
+    int sockfd, newsockfd, n, re, s;
+	// char buffer[256];
 	struct addrinfo hints, *res;
 	struct sockaddr_storage client_addr;
 	socklen_t client_addr_size;
@@ -227,75 +223,223 @@ int main(int argc, char* argv[]) {
 		exit(EXIT_FAILURE);
 	}
 
-    /******************* Connect with the upstream server *********************/
-    int sockfd_client, n_client, s_client;
-	struct addrinfo hints_client, *servinfo_client, *rp_client;
-	char buffer_client[256];
-
-    if (argc < 3) {
-		fprintf(stderr, "usage %s hostname port\n", argv[0]);
-		exit(EXIT_FAILURE);
-	}
-
-	// Create address
-	memset(&hints_client, 0, sizeof hints_client);
-	hints_client.ai_family = AF_INET;
-	hints_client.ai_socktype = SOCK_STREAM;
-
-	// Get addrinfo of server. From man page:
-	// The getaddrinfo() function combines the functionality provided by the
-	// gethostbyname(3) and getservbyname(3) functions into a single interface
-	s_client = getaddrinfo(argv[1], argv[2], &hints_client, &servinfo_client);
-	if (s_client != 0) {
-		fprintf(stderr, "getaddrinfo: %s\n", gai_strerror(s_client));
-		exit(EXIT_FAILURE);
-	}
-
-	// Connect to first valid result
-	// Why are there multiple results? see man page (search 'several reasons')
-	// How to search? enter /, then text to search for, press n/N to navigate
-	for (rp_client = servinfo_client; rp_client != NULL; rp_client = rp_client->ai_next) {
-		sockfd_client = socket(rp_client->ai_family, rp_client->ai_socktype, rp_client->ai_protocol);
-		if (sockfd_client == -1)
-			continue;
-
-		if (connect(sockfd_client, rp_client->ai_addr, rp_client->ai_addrlen) != -1)
-			break; // success
-
-		close(sockfd_client);
-	}
-	if (rp_client == NULL) {
-		fprintf(stderr, "client: failed to connect\n");
-		exit(EXIT_FAILURE);
-	}
-
-    /****************************** end of establishing connection with upstream server ************************************/
-
-
 	// Read characters from the connection, then process
 	while (1) {
-		memset(buffer, 0, 256);
-		n = read(newsockfd, buffer, 255); // n is number of characters read
+
+        unsigned char buffer[DATA_SIZE];
+        unsigned char* dns_message;
+        unsigned char* whole_dns_message;
+
+        // Finding the size of dns message
+        n = read(newsockfd, buffer, DATA_SIZE); // n is number of characters read
 		if (n < 0) {
 			perror("ERROR reading from socket");
 			exit(EXIT_FAILURE);
 		}
+
+        int message_size = convertHexToDec(buffer);
+        printf("Data size: %d\n", message_size);
+
+        // Import message into dns_message
+        dns_message = malloc(message_size);
+        n = read(newsockfd, dns_message, message_size);
+        if (n < 0) {
+            perror("ERROR reading from socket");
+            exit(EXIT_FAILURE);
+        }
+        printf("mes size: %d \n", (int)sizeof(dns_message));
+        
+        unsigned char response = dns_message[2]>>7;
+        printf("Response: %d\n", response);
+        
+        printf("\n");
+
+        // unsigned char* whole_dns_message = malloc(sizeof(buffer)+sizeof(dns_message));
+        whole_dns_message = malloc(DATA_SIZE+message_size);
+
+
+        printf("eafwfa]\n");
+        for (int i =0; i<52; i++) {
+            printf("[%d]: %x ",i, dns_message[i]);
+        }
+        printf("\n\n");
+
+        // creating a variable that contains the whole dns message
+        for (int i =0; i<(DATA_SIZE); i++) {
+            whole_dns_message[i] = buffer[i];
+            // printf("[%d]: %x ",i, whole_dns_message[i]);
+        }
+        for (int i =DATA_SIZE; i<(DATA_SIZE+message_size); i++) {
+            whole_dns_message[i] = dns_message[i];
+            // printf("[%d]: %x ",i, whole_dns_message[i]);
+        }
+        for (int i =0; i<(DATA_SIZE+message_size); i++) {
+            printf("[%d]: %x ",i, whole_dns_message[i]);
+        }
+
+        printf("\nwhole dns size: %lu\n",sizeof(whole_dns_message));
+
+
+        int index = FIRST_NAME_INDEX; //12
+        char* domain_name = malloc(100);
+    
+        find_domain_name(&dns_message, &domain_name, &index);
+        printf("Domain name: %s\n", domain_name);
+        printf("index: %d\n", index);
+
+
+
+        fflush(stdout);
 
 		// Disconnect
 		if (n == 0) {
 			break;
 		}
 
-		// Write message back (Note: memset is setting the trailing \0)
-		// A rather ugly solution for the buffer
-		memmove(buffer + 30, buffer, n);
-		memmove(buffer, "Here is the message in upper: ", 30);
-		printf("%s\n", buffer);
-		n = write(newsockfd, buffer, n + 30);
-		if (n < 0) {
-			perror("write");
+        /******************* Connect with the upstream server *********************/
+        int sockfd_client, n_client, s_client;
+        struct addrinfo hints_client, *servinfo_client, *rp_client;
+        unsigned char* buffer_client;
+
+        if (argc < 3) {
+            printf("usage %s hostname port\n", argv[0]);
+            exit(EXIT_FAILURE);
+        }
+
+        // Create address
+        memset(&hints_client, 0, sizeof hints_client);
+        hints_client.ai_family = AF_INET;
+        hints_client.ai_socktype = SOCK_STREAM;
+
+        // Get addrinfo of server. From man page:
+        // The getaddrinfo() function combines the functionality provided by the
+        // gethostbyname(3) and getservbyname(3) functions into a single interface
+        s_client = getaddrinfo(argv[1], argv[2], &hints_client, &servinfo_client);
+        if (s_client != 0) {
+            fprintf(stderr, "getaddrinfo: %s\n", gai_strerror(s_client));
+            exit(EXIT_FAILURE);
+        }
+        printf("arg1, arg2: %s %s\n",argv[1], argv[2]);
+        // Connect to first valid result
+        // Why are there multiple results? see man page (search 'several reasons')
+        // How to search? enter /, then text to search for, press n/N to navigate
+        for (rp_client = servinfo_client; rp_client != NULL; rp_client = rp_client->ai_next) {
+            sockfd_client = socket(rp_client->ai_family, rp_client->ai_socktype, rp_client->ai_protocol);
+            if (sockfd_client == -1)
+                continue;
+
+            if (connect(sockfd_client, rp_client->ai_addr, rp_client->ai_addrlen) != -1)
+                break; // success
+
+            close(sockfd_client);
+        }
+        if (rp_client == NULL) {
+            fprintf(stderr, "client: failed to connect\n");
+            exit(EXIT_FAILURE);
+        }
+
+        // Do processing
+        printf("Passing client's req to upstream server\n");
+
+        // Send message to upstream server
+        n_client = write(sockfd_client, whole_dns_message, DATA_SIZE+message_size);
+        if (n_client < 0) {
+            perror("socket");
+            exit(EXIT_FAILURE);
+        }
+    printf("masi aman\n");
+
+        // for (int i =0; i<(DATA_SIZE+message_size); i++) {
+        //     printf("[%d]: %x ",i, whole_dns_message[i]);
+        // }
+
+        // Read message from server
+        // memset(buffer_client, 0, 256);
+
+        // n_client = read(sockfd_client, buffer_client, 255);
+        // if (n_client < 0) {
+        //     perror("read");
+        //     exit(EXIT_FAILURE);
+        // }
+
+        unsigned char buffer_data_size[DATA_SIZE];
+        unsigned char* dns_message_res;
+        unsigned char* whole_dns_message_res;
+
+        printf("masi aman\n");
+
+        // Finding the size of dns message
+        n_client = read(sockfd_client, buffer_data_size, DATA_SIZE); // n is number of characters read
+		if (n_client < 0) {
+			perror("ERROR reading from socket");
 			exit(EXIT_FAILURE);
 		}
+
+        printf("NNNNNN: %d\n", n);
+        printf("bufff disessesese: %x\n", buffer_data_size[1]);
+
+        int message_size_res = convertHexToDec(buffer_data_size);
+        printf("Data size RES: %d\n", message_size_res);
+
+        // Import message into dns_message
+        dns_message_res = malloc(message_size_res);
+        read(sockfd_client, dns_message_res, message_size_res);
+        // if (n < 0) {
+        //     perror("ERROR reading from socket");
+        //     exit(EXIT_FAILURE);
+        // }
+        printf("mes size: %d \n", (int)sizeof(dns_message_res));
+        
+        response = dns_message_res[2]>>7;
+        printf("Response: %d\n", response);
+        
+        printf("\n");
+
+        // unsigned char* whole_dns_message = malloc(sizeof(buffer)+sizeof(dns_message));
+        whole_dns_message_res = malloc(DATA_SIZE+message_size_res);
+
+
+        printf("BOTOOMMMMMMM]\n");
+        // for (int i =0; i<70; i++) {
+        //     printf("[%d]: %x ",i, dns_message_res[i]);
+        // }
+        // printf("\n\n");
+
+        // creating a variable that contains the whole dns message
+        for (int i =0; i<(DATA_SIZE); i++) {
+            whole_dns_message_res[i] = buffer_data_size[i];
+            // printf("[%d]: %x ",i, whole_dns_message[i]);
+        }
+        for (int i =DATA_SIZE; i<(DATA_SIZE+message_size_res); i++) {
+            whole_dns_message_res[i] = dns_message_res[i];
+            // printf("[%d]: %x ",i, whole_dns_message[i]);
+        }
+        for (int i =0; i<(DATA_SIZE+message_size_res); i++) {
+            printf("[%d]: %x ",i, whole_dns_message_res[i]);
+        }
+
+        // printf("TEST SEGFAULT: %x\n",whole_dns_message_res[55]);
+        printf("\nwhole dns size: %lu\n",sizeof(whole_dns_message_res));
+ //////////////////////////
+ 
+        // printf("%s\n", buffer_client);
+
+        close(sockfd_client);
+        freeaddrinfo(servinfo_client);
+
+    /****************************** end of establishing connection with upstream server ************************************/
+
+
+		// Write message back (Note: memset is setting the trailing \0)
+		// A rather ugly solution for the buffer
+		// memmove(buffer + 30, buffer, n);
+		// memmove(buffer, "Here is the message in upper: ", 30);
+		// printf("%s\n", buffer);
+		// n = write(newsockfd, buffer, n + 30);
+		// if (n < 0) {
+		// 	perror("write");
+		// 	exit(EXIT_FAILURE);
+		// }
 	}
 
 	freeaddrinfo(res);
