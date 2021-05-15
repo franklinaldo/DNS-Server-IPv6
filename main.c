@@ -8,6 +8,7 @@
 #include <netdb.h>
 #include <time.h>
 #include <ctype.h>
+#include <assert.h>
 
 #define DATA_SIZE 2
 #define DATA_LENGTH 2
@@ -60,43 +61,55 @@ void find_domain_name(unsigned char* message, char* domain_name, int* index) {
     unsigned char zero_hex =0x0;
 
     while ((message)[*index] != zero_hex) {
-        printf("\n------------------------------\n is_index_name_length: %d\n next_index_name_length: %d\n total_length: %d\n q_name_index: %d\n-----------------------------\n", is_index_name_length, next_index_name_length, total_length, q_name_index);
-                printf("strlen dom name : %d\n", strlen(domain_name));
-                printf("dom name print : %s\n", domain_name);
-                
+        // printf("\n------------------------------\n is_index_name_length: %d\n \
+        //     next_index_name_length: %d\n total_length: %d\n q_name_index: %d\n \
+        //     -----------------------------\n", \
+        //     is_index_name_length, next_index_name_length, \
+        //     total_length, q_name_index);
+        // printf("strlen dom name : %lu\n", strlen(domain_name));
+        // printf("dom name print : %s\n", domain_name);
+        
             // printf("MESSAGE[%d] = %x\n", *index, (*message)[*index]);
             // Current index arrives at the next label length
 
             // Flag the current index as the length of the next sub name
-            if (next_index_name_length == *index) {
-                is_index_name_length = 1;
+        if (next_index_name_length == *index) {
+            is_index_name_length = 1;
 
-                // Adding dot to the separated name
-                if (*index!=FIRST_NAME_INDEX) {
-                    total_length+= DOT;
-                    (domain_name)[q_name_index] = '.';
-                    q_name_index++;
-                }
-            }
-
-            // current index is telling about the length of label
-            if (is_index_name_length) {
-                int label_length = (int)(message)[*index];
-                printf("label len : %d\n", label_length);
-                next_index_name_length = (*index)+ label_length + 1;
-                total_length += label_length;
-                printf("total len : %d\n", total_length);
-                domain_name = realloc(domain_name, (sizeof(unsigned char))*total_length);
-                // question_name = (char *) realloc(question_name, total_length);
-                is_index_name_length = 0;
-                (*index)++;
-
-            } else { // append character in current index
-                (domain_name)[q_name_index] = (char)(message)[*index];
+            // Adding dot to the separated sub name
+            if (*index!=FIRST_NAME_INDEX) {
+                total_length+= DOT;
+                (domain_name)[q_name_index] = '.';
                 q_name_index++;
-                (*index)++;
             }
+        }
+
+        // current index is telling about the length of label
+        if (is_index_name_length) {
+            int label_length = (int)(message)[*index];
+            // printf("label len : %d\n", label_length);
+            next_index_name_length = (*index)+ label_length + DOT;
+            total_length += label_length;
+            // printf("total len : %d\n", total_length);
+            domain_name = realloc(domain_name, (sizeof( char))*total_length);
+            is_index_name_length = 0;
+            (*index)++;
+
+        } else { // append character in current index
+            (domain_name)[q_name_index] = (char)(message)[*index];
+            q_name_index++;
+            (*index)++;
+        }
+
+        if (strlen(domain_name)!=total_length) {
+            // for (int i=0; i<total_length; i++) {
+
+            // }
+            domain_name[total_length] = '\0';
+        }
     }
+    printf("strlen dom name : %lu\n", strlen(domain_name));
+    printf("dom name print : %s\n", domain_name);
 }
 
 char* timestamp(char** ts) {
@@ -113,22 +126,27 @@ char* timestamp(char** ts) {
 void stringify_ip_address(char *cleaned_ip_string, unsigned char* message, int* index) {
 
     unsigned char buf[sizeof(struct in6_addr)];
-    char *ip_addr_string = malloc(INET6_ADDRSTRLEN);
+    // char *ip_addr_string = malloc(INET6_ADDRSTRLEN);
+    char ip_addr_string[INET6_ADDRSTRLEN] = "";
+    // ip_addr_string = malloc(46);
+    // assert(ip_addr_string);
+    printf("before ipaddstr: %s\n", ip_addr_string);
     int s;
     char temp[4];
     
     for (int i=0; i<16; i++) {
-        // printf("message[%d]: %.2x\n", *index+17+i, message[*index+17+i]);
+        printf("message[%d]: %.2x\n", *index+17+i, message[*index+17+i]);
         sprintf(temp, "%.2x", message[*index+17+i]);
         // printf("MASOK x%d\n", i);
         strcat(ip_addr_string, temp);
+        printf("temp: %s\n",temp);
         // ip_address[ip_index] = temp;
         // ip_index++;
         if ((i%2) && (i!=15)) {
             strcat(ip_addr_string, ":");
             // printf("MASOK sini juga x%d\n", i);
         }
-        // printf("ip_addr_string: %s\n", ip_addr_string);
+        printf("ip_addr_string: %s\n\n", ip_addr_string);
     }
 
     s = inet_pton(AF_INET6, ip_addr_string, buf);
@@ -140,9 +158,10 @@ void stringify_ip_address(char *cleaned_ip_string, unsigned char* message, int* 
             perror("inet_pton");
         exit(EXIT_FAILURE);
     }
+
     inet_ntop(AF_INET6, buf, cleaned_ip_string, INET6_ADDRSTRLEN);
 
-    // printf("%s\n", cleaned_ip_string);
+    printf("%s\n", cleaned_ip_string);
 
 }
 int main(int argc, char* argv[]) {
@@ -235,15 +254,13 @@ int main(int argc, char* argv[]) {
 		if (n == 0) {
 			break;
 		}
-    
 
         int message_size = convertHexToDec(buffer);
         printf("Data size: %d\n", message_size);
 
-        
         // Import message into dns_message
         dns_message = malloc(message_size*sizeof(unsigned char));
-        memset(dns_message, 0, message_size);
+        // memset(dns_message, 0, message_size);
         n = read(newsockfd, dns_message, message_size);
         
         if (n < 0) {
@@ -252,14 +269,30 @@ int main(int argc, char* argv[]) {
         }
         printf("mes size: %d \n", (int)sizeof(dns_message));
         
-        unsigned char response = dns_message[2]>>7;
-        printf("Response: %d\n", response);
+        // unsigned char response = dns_message[2]>>7;
+        // printf("Response: %d\n", response);
         
         printf("\n");
 
+        // Finding domain name for logging
+        int index = FIRST_NAME_INDEX; //12
+        // char* domain_name = NULL;
+
+        
+        char* domain_name = malloc(1*sizeof(char));
+    
+        find_domain_name(dns_message, domain_name, &index);
+        
+        printf("\nDomain name: %s, %lu\n", domain_name, strlen(domain_name));
+        for (int i =0; i< strlen(domain_name); i++) {
+            printf("[%d]: %c ",i, domain_name[i]);
+        }
+        printf("\n");
+
+        printf("index: %d\n", index);
+
         // unsigned char* whole_dns_message = malloc(sizeof(buffer)+sizeof(dns_message));
         whole_dns_message = malloc(DATA_SIZE+message_size);
-
 
         printf("REQUEST\n");
 
@@ -274,31 +307,27 @@ int main(int argc, char* argv[]) {
         }
         // Printing the whole dns message
         for (int i =0; i<(DATA_SIZE+message_size); i++) {
-            printf("[%d]: %d ",i, whole_dns_message[i]);
+            printf("[%d]: %x ",i, whole_dns_message[i]);
         }
         printf("\n--------------------------\n");
 
         for (int i =0; i<(DATA_SIZE+message_size); i++) {
-            printf("[%d]: %c ",i, whole_dns_message[i]);
+            // printf("[%d]: %c ",i, whole_dns_message[i]);
         }
-
-        // Finding domain name for logging
-        int index = FIRST_NAME_INDEX; //12
-        char* domain_name = NULL;
-        domain_name = malloc(1*sizeof(unsigned char));
 
         // For timestamp
         char* request_log_string = malloc(80);
         char* time_buffer = timestamp(&request_log_string);
-    
-        find_domain_name(dns_message, domain_name, &index);
-        printf("\nDomain name: %s, %d\n", domain_name, strlen(domain_name));
-        for (int i =0; i< (strlen(domain_name)); i++) {
-            printf("[%d]: %c ",i, domain_name[i]);
-        }
-        printf("\n");
+        
 
-        printf("index: %d\n", index);
+
+        // Logging request
+        FILE *f;
+        f = fopen("dns_svr.log", "a+"); // a+ (create + append) option will allow appending which is useful in a log file
+        if (f == NULL) { /* Something is wrong   */}
+        fprintf(f, "%s %s %s\n", time_buffer, "requested", domain_name);
+        printf( "%s %s %s\n", time_buffer, "requested",domain_name);
+        fclose(f);
 
         // Check whether using IPv6 or other connections
         int is_IPv6 = 0;
@@ -318,13 +347,6 @@ int main(int argc, char* argv[]) {
         } else {
             // 2021-04-26T01:03:23+0000 requested 2.comp30023
             printf("DNS type: IPv6\n");
-
-            FILE *f;
-            f = fopen("dns_svr.log", "a+"); // a+ (create + append) option will allow appending which is useful in a log file
-            if (f == NULL) { /* Something is wrong   */}
-            fprintf(f, "%s %s %s\n", time_buffer, "requested", domain_name);
-            printf( "%s %s %s\n", time_buffer, "requested",domain_name);
-            fclose(f);
 
             /******************* Connect with the upstream server *********************/
             int sockfd_client, n_client, s_client;
@@ -382,7 +404,7 @@ int main(int argc, char* argv[]) {
             unsigned char* whole_dns_message_res;
 
             // Finding the size of dns message
-            n_client = recv(sockfd_client,buffer_data_size,DATA_SIZE,0);
+            n_client = read(sockfd_client,buffer_data_size,DATA_SIZE);
             // printf("bufff disessesese: %02x %02x\n", buffer_data_size[0],buffer_data_size[1]);
 
             // n_client = rec(sockfd_client, buffer_data_size, DATA_SIZE); // n is number of characters read
@@ -390,9 +412,6 @@ int main(int argc, char* argv[]) {
                 perror("ERROR reading from socket");
                 exit(EXIT_FAILURE);
             }
-
-            // printf("NNNNNN: %d\n", n);
-            // printf("bufff disessesese: %x\n", buffer_data_size[1]);
 
             int message_size_res = convertHexToDec(buffer_data_size);
             printf("Data size RES: %d\n", message_size_res);
@@ -404,12 +423,36 @@ int main(int argc, char* argv[]) {
                 perror("ERROR reading from socket");
                 exit(EXIT_FAILURE);
             }
-            // printf("mes size: %d \n", (int)sizeof(dns_message_res));
+
+            for (int i=0;i<message_size; i++) {
+                printf("[%d]: %.2x ", i, dns_message_res[i]);
+            }
+            printf("\n");
+
+
+///////////////////////
+            int res_index = FIRST_NAME_INDEX; //12
+            char* res_domain_name = NULL;
+            res_domain_name = malloc(1*sizeof(char));
+
+            // For timestamp
+            char* response_log_string = malloc(80);
+            // char* res_time_buffer = timestamp(&response_log_string);
+        
+            find_domain_name(dns_message_res, res_domain_name, &res_index);
+            printf("\nDomain name: %s, %lu\n", res_domain_name, strlen(res_domain_name));
+            for (int i =0; i< (strlen(res_domain_name)); i++) {
+                printf("[%d]: %c ",i, res_domain_name[i]);
+            }
+            printf("\n");
+
+            printf("res index: %d\n", res_index);
+
+///////////////////////
+
+
+
             
-            response = dns_message_res[2]>>7;
-            // printf("Response: %d\n", response);
-            
-            // printf("\n");
 
             // unsigned char* whole_dns_message = malloc(sizeof(buffer)+sizeof(dns_message));
             whole_dns_message_res = malloc(DATA_SIZE+message_size_res);
@@ -429,6 +472,20 @@ int main(int argc, char* argv[]) {
                 // printf("[%d]: %x ",i, whole_dns_message_res[i]);
             }
 
+            char* cleaned_ip_string = malloc(INET6_ADDRSTRLEN);
+            stringify_ip_address(cleaned_ip_string, dns_message_res, &res_index);
+            printf("IP Address: %s\n", cleaned_ip_string);
+            // 2021-04-24T05:12:32+0000 1.comp30023 is at 2001:388:6074::7547:1
+            // fprintf(f, "%s %s %s %s\n", time_buffer, domain_name, "is at", cleaned_ip_string);
+            printf("%s %s %s %s\n", time_buffer, domain_name, "is at", cleaned_ip_string);
+            
+            
+            // printf("mes size: %d \n", (int)sizeof(dns_message_res));
+            
+            // response = dns_message_res[2]>>7;
+            // printf("Response: %d\n", response);
+            
+            // printf("\n");
             close(sockfd_client);
             freeaddrinfo(servinfo_client);
 
@@ -439,9 +496,24 @@ int main(int argc, char* argv[]) {
                 perror("write");
                 exit(EXIT_FAILURE);
             }
+
+            // Finding domain name for logging
+            // int index = FIRST_NAME_INDEX; //12
+            // char* domain_name = NULL;
+            // domain_name = malloc(1*sizeof(unsigned char));
+        
+            // find_domain_name(dns_message, domain_name, &index);
+            
+            // printf("\nDomain name: %s, %lu\n", domain_name, strlen(domain_name));
+            // for (int i =0; i< strlen(domain_name); i++) {
+            //     printf("[%d]: %c ",i, domain_name[i]);
+            // }
+            // printf("\n");
+
+            // printf("index: %d\n", index);
         }
         
-        free(domain_name);
+        // free(domain_name);
 
 	}
 
