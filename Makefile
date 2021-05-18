@@ -4,7 +4,7 @@
 # COPT - compiler flags
 # BIN - binary
 CC=clang
-OBJ=helper1.o
+OBJ=parse_data.o logging.o
 COPT=-Wall -Wpedantic -g
 BIN_PHASE1=phase1
 BIN_PHASE2=dns_svr
@@ -20,8 +20,8 @@ all: $(BIN_PHASE1) $(BIN_PHASE2)
 $(BIN_PHASE2): main.c $(OBJ)
 	$(CC) -o $(BIN_PHASE2) main.c $(OBJ) $(COPT)
 
-$(BIN_PHASE1): phase1.c $(OBJ)
-	$(CC) -o $(BIN_PHASE1) phase1.c $(OBJ) $(COPT)
+# $(BIN_PHASE1): phase1.c $(OBJ)
+# 	$(CC) -o $(BIN_PHASE1) phase1.c $(OBJ) $(COPT)
 
 # Wildcard rule to make any  .o  file,
 # given a .c and .h file with the same leading filename component
@@ -33,4 +33,4 @@ format:
 
 clean:
 	# implement this, to remove $(BIN_PHASE[12]) and any .o files
-	$(RM) helper.o
+	$(RM) $(BIN_PHASE1) $(BIN_PHASE1) parse_data.o logging.o dns_svr.log
