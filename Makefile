@@ -6,7 +6,7 @@
 CC=clang
 OBJ=parse_data.o logging.o
 COPT=-Wall -Wpedantic -g
-BIN_PHASE1=phase1
+# BIN_PHASE1=phase1
 BIN_PHASE2=dns_svr
 
 # Running "make" with no argument will make the first target in the file
@@ -32,5 +32,5 @@ format:
 	clang-format -i *.c *.h
 
 clean:
-	# implement this, to remove $(BIN_PHASE[12]) and any .o files
-	$(RM) $(BIN_PHASE1) $(BIN_PHASE1) parse_data.o logging.o dns_svr.log
+# implement this, to remove $(BIN_PHASE[12]) and any .o files
+	$(RM) $(BIN_PHASE2) parse_data.o logging.o
