@@ -21,29 +21,22 @@ int convertHexToDec(unsigned char* byte){
 void stringify_ip_address(char *cleaned_ip_string, unsigned char* message, int* index) {
 
     unsigned char buf[sizeof(struct in6_addr)];
-    // char *ip_addr_string = malloc(INET6_ADDRSTRLEN);
     char ip_addr_string[INET6_ADDRSTRLEN] = "";
-    // ip_addr_string = malloc(46);
-    // assert(ip_addr_string);
-    // printf("before ipaddstr: %s\n", ip_addr_string);
     int s;
     char temp[4];
     
+    // Go through IP address in dns message hex
     for (int i=0; i<16; i++) {
-        // printf("message[%d]: %.2x\n", *index+17+i, message[*index+17+i]);
         sprintf(temp, "%.2x", message[*index+17+i]);
-        // printf("MASOK x%d\n", i);
         strcat(ip_addr_string, temp);
-        // printf("temp: %s\n",temp);
-        // ip_address[ip_index] = temp;
-        // ip_index++;
+
+        // Adding ':' every 4 bytes
         if ((i%2) && (i!=15)) {
             strcat(ip_addr_string, ":");
-            // printf("MASOK sini juga x%d\n", i);
         }
-        // printf("ip_addr_string: %s\n\n", ip_addr_string);
     }
 
+    //  converts an Internet address in its standard text format into its numeric binary form
     s = inet_pton(AF_INET6, ip_addr_string, buf);
     
     if (s <= 0) {
@@ -54,18 +47,18 @@ void stringify_ip_address(char *cleaned_ip_string, unsigned char* message, int* 
         exit(EXIT_FAILURE);
     }
 
+    // convert the numeric IP into text string
     inet_ntop(AF_INET6, buf, cleaned_ip_string, INET6_ADDRSTRLEN);
-
-    printf("%s\n", cleaned_ip_string);
-
 }
 
+// Merging two sub dns messages
 void merge_sub_dns_messages(unsigned char* buffer, unsigned char* first_sub_message, int* first_sub_message_size, unsigned char* second_sub_message, int* second_sub_message_size){
 
+    // Adding the first sub message
     for (int i =0; i<(*first_sub_message_size); i++) {
         buffer[i] = first_sub_message[i];
     }
-    // Inserting the dns message hex
+    // Adding the second sub message
     for (int i =0; i<(*second_sub_message_size); i++) {
         buffer[i+(*first_sub_message_size)] = second_sub_message[i];
     }
@@ -99,11 +92,8 @@ char* find_domain_name(unsigned char* message, int* index) {
         // current index is telling about the length of label
         if (is_index_name_length) {
             int label_length = (int)(message)[*index];
-            // printf("label len : %d\n", label_length);
             next_index_name_length = (*index)+ label_length + DOT;
             total_length += label_length;
-            // printf("total len : %d\n", total_length);
-            printf("Realloc size: %lu\n", (sizeof(char))*total_length);
             domain_name = realloc(domain_name, (sizeof(char))*total_length+2);
             is_index_name_length = 0;
             (*index)++;
@@ -120,7 +110,5 @@ char* find_domain_name(unsigned char* message, int* index) {
         }
 
     }
-    printf("strlen dom name : %lu\n", strlen(domain_name));
-    printf("dom name print : %s\n", domain_name);
     return domain_name;
 }
