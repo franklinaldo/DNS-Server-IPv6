@@ -19,39 +19,6 @@
 #define FIRST_NAME_INDEX 12
 #define DOT 1
 
-
-/* ******************** Functions ******************** */
-
-int convertHexToDec(unsigned char* byte){
-    return (int)byte[0]*256 + (int)byte[1];
-}
-
-// read data
-void read_raw_data(char* filename, unsigned char** message) {
-    // int fdes;
-    // unsigned char buffer[DATA_LENGTH];
-
-    // /* open the file for unformatted input */
-    // fdes = open(filename,O_RDONLY);
-    // if( fdes==-1 ) {
-    //     fprintf(stderr,"Unable to open %s\n", filename);
-    // }
-
-    // read(fdes, buffer, DATA_LENGTH);
-
-    // int message_size = convertHexToDec(buffer);
-    // // printf("Data size: %d\n", convertHexToDec(buffer));
-    // printf("Data size in func: %d\n", message_size);
-
-    // *message =  malloc(sizeof(unsigned char)*message_size);
-    // read( fdes, *message, message_size);
-
-    // printf("\n");
-    
-    // /* close the file */
-    // close(fdes);
-}
-
 int main(int argc, char* argv[]) {
 
     /* ***************************** Logging ************************************** */
@@ -136,17 +103,13 @@ int main(int argc, char* argv[]) {
 
         // Import message into dns_message
         int n2;
-        printf("still ok?\n");
         printf("strlen dns msg: %d\n", message_size);
         // unsigned char* dns_message = malloc(sizeof(unsigned char)*message_size);
         unsigned char dns_message[sizeof(unsigned char)*message_size];
 
-        printf("still ok?\n");
-
         int receive_bytes =0;
-
+        // Getting dns message one by one to avoid failure on delay
         while (receive_bytes != message_size){
-
             unsigned char temp[1];
             n2 = read(newsockfd, temp, 1);
             if (n < 0) {
@@ -155,24 +118,23 @@ int main(int argc, char* argv[]) {
             }
             dns_message[receive_bytes] = temp[0];
             receive_bytes += n2;
-            printf("mes size: %d \n", (int)sizeof(dns_message));
+            // printf("mes size: %d \n", (int)sizeof(dns_message));
         }
         
         printf("\n");
 
         // Finding domain name for logging
         int index = FIRST_NAME_INDEX; //12
-        // char* domain_name = NULL;
-        char* domain_name = malloc(1*sizeof(char));
-        find_domain_name(dns_message, domain_name, &index);
-
-        printf("last thingin dom name: %c, [%lu]\n", domain_name[strlen(domain_name)-1], strlen(domain_name));
+        
+        char* domain_name = find_domain_name(dns_message, &index);
+        // printf("FOUND: %s\n", found);
+        // // printf("last thingin dom name: %c, [%lu]\n", domain_name[strlen(domain_name)-1], strlen(domain_name));
             
-        printf("\nDomain name: %s, %lu\n", domain_name, strlen(domain_name));
-        for (int i =0; i< (strlen(domain_name)); i++) {
-            printf("[%d]: %c ",i, domain_name[i]);
-        }
-        printf("\n");
+        // printf("\nDomain name: %s, %lu\n", found, strlen(found));
+        // for (int i =0; i< (strlen(found)); i++) {
+        //     printf("[%d]: %c ",i, found[i]);
+        // }
+        // printf("\n");
         
         // printf("\nDomain name: %s, %lu\n", domain_name, strlen(domain_name));
         // for (int i =0; i< strlen(domain_name); i++) {
@@ -188,7 +150,7 @@ int main(int argc, char* argv[]) {
 
         // creating a variable that contains the whole dns message
         // Inserting the data length hex
-        unsigned char* whole_dns_message = malloc(sizeof(unsigned char)*(1));
+        unsigned char* whole_dns_message = malloc(sizeof(unsigned char)*(n+message_size));
         merge_sub_dns_messages(whole_dns_message, dns_message_size_hex, &n, dns_message, &message_size);
         
         printf("\n--------------------------\n");
@@ -206,15 +168,13 @@ int main(int argc, char* argv[]) {
             is_IPv6 = 1;
         }
         
+        // Handling Not AAAA request
         if (!is_IPv6) {
             write_log_unimplemented_request();
+            
+            // Modifying the request for responding the client
             whole_dns_message[4] = 0x80;
             whole_dns_message[5] = 4;
-            printf("REJECTION ANSWER\n");
-            // for (int i =0; i<(DATA_LENGTH+message_size); i++) {
-            // printf("[%d]: %x ",i, whole_dns_message[i]);
-            // }
-            printf("\n");
             n = write(newsockfd, whole_dns_message, DATA_SIZE+message_size);
             if (n < 0) {
                 perror("write");
@@ -244,9 +204,8 @@ int main(int argc, char* argv[]) {
                 exit(EXIT_FAILURE);
             }
             printf("arg1, arg2: %s %s\n",argv[1], argv[2]);
+            
             // Connect to first valid result
-            // Why are there multiple results? see man page (search 'several reasons')
-            // How to search? enter /, then text to search for, press n/N to navigate
             for (rp_client = servinfo_client; rp_client != NULL; rp_client = rp_client->ai_next) {
                 sockfd_client = socket(rp_client->ai_family, rp_client->ai_socktype, rp_client->ai_protocol);
                 if (sockfd_client == -1)
@@ -310,11 +269,12 @@ int main(int argc, char* argv[]) {
 
 ///////////////////////
             int res_index = FIRST_NAME_INDEX; //12
-            char* res_domain_name = malloc(1*sizeof(char));
+            char* res_domain_name = find_domain_name(dns_message_res, &res_index);
+            // char* res_domain_name = malloc(1*sizeof(char));
 
-            find_domain_name(dns_message_res, res_domain_name, &res_index);
+            // find_domain_name(dns_message_res, res_domain_name, &res_index);
             // res_domain_name[strlen(res_domain_name)] = '\0';
-            printf("last thingin dom name: %c, [%lu]\n", res_domain_name[strlen(res_domain_name)-1], strlen(res_domain_name));
+            // printf("last thingin dom name: %c, [%lu]\n", res_domain_name[strlen(res_domain_name)-1], strlen(res_domain_name));
             
             printf("\nDomain name: %s, %lu\n", res_domain_name, strlen(res_domain_name));
             for (int i =0; i< (strlen(res_domain_name)); i++) {
@@ -327,8 +287,6 @@ int main(int argc, char* argv[]) {
 ///////////////////////
             printf("total message size: %d\n", n_client);
             // unsigned char* whole_dns_message = malloc(sizeof(buffer)+sizeof(dns_message));
-             
-            // unsigned char *whole_dns_message_res = (unsigned char*)malloc(sizeof(unsigned char)*1024);
 
             printf("\n\nRESPONSE\n");
 
@@ -351,15 +309,15 @@ int main(int argc, char* argv[]) {
             int is_IPv6 = 0;
     
             if (dns_message_res[index+1+6]==0x0 && dns_message_res[index+2+6]==0x1c) {
-                printf("\nRES connection hex: %x %x\n",dns_message_res[index+1], dns_message_res[index+2]);
+                // printf("\nRES connection hex: %x %x\n",dns_message_res[index+1+6], dns_message_res[index+2+6]);
                 is_IPv6 = 1;
             }
             
             printf("\nRES connection hex: %x %x\n idx: %d, %d\n",dns_message_res[index+1], dns_message_res[index+2], index+1, index+2);
             printf("\nRES connection hex: %x %x\n idx: %d, %d\n",dns_message_res[index+1+6], dns_message_res[index+2+6], index+1+6, index+2+6);
             
-            if (!is_IPv6) {
-            } else {
+            // Only log the AAAA response
+            if (is_IPv6) {
                 char* cleaned_ip_string = malloc(INET6_ADDRSTRLEN);
                 stringify_ip_address(cleaned_ip_string, dns_message_res, &res_index);
                 printf("IP Address: %s\n", cleaned_ip_string);
@@ -377,10 +335,10 @@ int main(int argc, char* argv[]) {
                 exit(EXIT_FAILURE);
             }
         }
-        free(domain_name);
+        // free(domain_name);
 	}
 
-    // fflush(stdout);
+    fflush(stdout);
 	freeaddrinfo(res);
 	close(sockfd);
 	close(newsockfd);

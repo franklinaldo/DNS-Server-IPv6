@@ -1,4 +1,6 @@
-void find_domain_name(unsigned char* message, char* domain_name, int* index);
+int convertHexToDec(unsigned char* byte);
+
+char* find_domain_name(unsigned char* message, int* index);
 
 void stringify_ip_address(char *cleaned_ip_string, unsigned char* message, int* index);
 

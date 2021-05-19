@@ -14,63 +14,8 @@
 #include <netdb.h>
 
 
-// Finding domain name
-void find_domain_name(unsigned char* message, char* domain_name, int* index) {
-    
-    int is_index_name_length = 1;
-    int next_index_name_length = 0;
-    int total_length = 0;
-    int q_name_index = 0;
-
-    unsigned char zero_hex =0x0;
-    while ((message)[*index] != zero_hex) {
-        // printf("\n------------------------------\n is_index_name_length: %d\n \
-        //     next_index_name_length: %d\n total_length: %d\n q_name_index: %d\n \
-        //     -----------------------------\n", \
-        //     is_index_name_length, next_index_name_length, \
-        //     total_length, q_name_index);
-        // printf("strlen dom name : %lu\n", strlen(domain_name));
-        // printf("dom name print : %s\n", domain_name);
-        
-            // printf("MESSAGE[%d] = %x\n", *index, (*message)[*index]);
-            // Current index arrives at the next label length
-
-            // Flag the current index as the length of the next sub name
-        if (next_index_name_length == *index) {
-            is_index_name_length = 1;
-
-            // Adding dot to the separated sub name
-            if (*index!=FIRST_NAME_INDEX) {
-                total_length+= DOT;
-                (domain_name)[q_name_index] = '.';
-                q_name_index++;
-            }
-        }
-
-        // current index is telling about the length of label
-        if (is_index_name_length) {
-            int label_length = (int)(message)[*index];
-            // printf("label len : %d\n", label_length);
-            next_index_name_length = (*index)+ label_length + DOT;
-            total_length += label_length;
-            // printf("total len : %d\n", total_length);
-            printf("Realloc size: %lu\n", (sizeof(char))*total_length);
-            domain_name = realloc(domain_name, (sizeof(char))*total_length+2);
-            is_index_name_length = 0;
-            (*index)++;
-
-        } else { // append character in current index
-            (domain_name)[q_name_index] = (char)(message)[*index];
-            q_name_index++;
-            (*index)++;
-        }
-
-        if (strlen(domain_name)!=total_length) {
-            domain_name[total_length] = '\0';
-        }
-    }
-    printf("strlen dom name : %lu\n", strlen(domain_name));
-    printf("dom name print : %s\n", domain_name);
+int convertHexToDec(unsigned char* byte){
+    return (int)byte[0]*256 + (int)byte[1];
 }
 
 void stringify_ip_address(char *cleaned_ip_string, unsigned char* message, int* index) {
@@ -116,9 +61,7 @@ void stringify_ip_address(char *cleaned_ip_string, unsigned char* message, int* 
 }
 
 void merge_sub_dns_messages(unsigned char* buffer, unsigned char* first_sub_message, int* first_sub_message_size, unsigned char* second_sub_message, int* second_sub_message_size){
-    printf("entered merge\n");
-    buffer = realloc(buffer, (sizeof(unsigned char)*((*first_sub_message_size)+(*second_sub_message_size))));
-    printf("finished mrege realloc\n");
+
     for (int i =0; i<(*first_sub_message_size); i++) {
         buffer[i] = first_sub_message[i];
     }
@@ -126,9 +69,58 @@ void merge_sub_dns_messages(unsigned char* buffer, unsigned char* first_sub_mess
     for (int i =0; i<(*second_sub_message_size); i++) {
         buffer[i+(*first_sub_message_size)] = second_sub_message[i];
     }
-    // Printing the whole dns message
-    // for (int i =0; i<((*first_sub_message_size)+(*second_sub_message_size)); i++) {
-    //     printf("[%d]: %x ",i, buffer[i]);
-    // }
 
+}
+
+// Finding domain name
+char* find_domain_name(unsigned char* message, int* index) {
+    
+    int is_index_name_length = 1;
+    int next_index_name_length = 0;
+    int total_length = 0;
+    int q_name_index = 0;
+
+    char* domain_name = malloc(sizeof(char));
+    unsigned char zero_hex =0x0;
+
+    // While the bytes doesnt contain the 0x00 (stop sign for domain name)
+    while ((message)[*index] != zero_hex) {
+        if (next_index_name_length == *index) {
+            is_index_name_length = 1;
+
+            // Adding dot to the separated sub name
+            if (*index!=FIRST_NAME_INDEX) {
+                total_length+= DOT;
+                (domain_name)[q_name_index] = '.';
+                q_name_index++;
+            }
+        }
+
+        // current index is telling about the length of label
+        if (is_index_name_length) {
+            int label_length = (int)(message)[*index];
+            // printf("label len : %d\n", label_length);
+            next_index_name_length = (*index)+ label_length + DOT;
+            total_length += label_length;
+            // printf("total len : %d\n", total_length);
+            printf("Realloc size: %lu\n", (sizeof(char))*total_length);
+            domain_name = realloc(domain_name, (sizeof(char))*total_length+2);
+            is_index_name_length = 0;
+            (*index)++;
+
+        } else { // append character in current index
+            (domain_name)[q_name_index] = (char)(message)[*index];
+            q_name_index++;
+            (*index)++;
+        }
+
+        // Adding termination
+        if (strlen(domain_name)!=total_length) {
+            domain_name[total_length] = '\0';
+        }
+
+    }
+    printf("strlen dom name : %lu\n", strlen(domain_name));
+    printf("dom name print : %s\n", domain_name);
+    return domain_name;
 }
